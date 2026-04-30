@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kl-agents"
+version = "0.1.0"
+description = "Knife & Ledger agentic OS. Scout is Agent 1."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [{ name = "Knife & Ledger" }]
+dependencies = [
+    "anthropic>=0.40.0",
+    "praw>=7.7.1",
+    "supabase>=2.9.0",
+    "python-dotenv>=1.0.1",
+    "PyYAML>=6.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11",
+    "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+scout = "agents.scout.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "shared*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+]
+ignore = ["E501"]  # line length is enforced by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["agents", "shared"]
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

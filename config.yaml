@@ -1,0 +1,30 @@
+# Scout configuration
+# This file holds non-secret tunables. Secrets live in .env.
+# Edit and re-run. No restart required (CLI loads on each invocation).
+
+agent:
+  name: scout
+  version: 0.1.0
+
+reddit:
+  subreddits:
+    - restaurateur
+    - KitchenConfidential
+    - smallbusiness
+  posts_per_subreddit: 50
+  sort: new
+  max_age_days: 30          # skip posts older than this
+
+classification:
+  model: claude-sonnet-4-5
+  confidence_threshold: 0.6 # >= threshold marks review_status=pending, below marks auto_rejected
+  max_post_chars: 8000      # truncate post body before sending to claude
+  retry_on_rate_limit: true
+  max_retries: 3
+
+storage:
+  source_name: reddit       # written to classified_posts.source
+
+logging:
+  level: INFO
+  format: json
