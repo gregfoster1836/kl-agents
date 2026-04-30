@@ -204,7 +204,10 @@ def fetch_all(
     if failures:
         log.warning(
             "fetch_partial_failure",
-            extra={"failed_subreddits": failures, "ok_subreddits": [s for s in subreddits if s not in failures]},
+            extra={
+                "failed_subreddits": failures,
+                "ok_subreddits": [s for s in subreddits if s not in failures],
+            },
         )
 
     return all_posts

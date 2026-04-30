@@ -18,10 +18,29 @@ from datetime import UTC, datetime
 from typing import Any
 
 _RESERVED_LOG_RECORD_ATTRS = {
-    "args", "asctime", "created", "exc_info", "exc_text", "filename",
-    "funcName", "levelname", "levelno", "lineno", "message", "module",
-    "msecs", "msg", "name", "pathname", "process", "processName",
-    "relativeCreated", "stack_info", "thread", "threadName", "taskName",
+    "args",
+    "asctime",
+    "created",
+    "exc_info",
+    "exc_text",
+    "filename",
+    "funcName",
+    "levelname",
+    "levelno",
+    "lineno",
+    "message",
+    "module",
+    "msecs",
+    "msg",
+    "name",
+    "pathname",
+    "process",
+    "processName",
+    "relativeCreated",
+    "stack_info",
+    "thread",
+    "threadName",
+    "taskName",
 }
 
 
@@ -54,8 +73,11 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure(level: str = "INFO", agent: str = "scout") -> logging.Logger:
-    """Configure root logger to emit JSON to stdout. Returns a child logger
-    bound to the named agent."""
+    """Configure root logger to emit JSON to stdout. Returns the named logger.
+
+    The 'agent' field is added by the formatter, defaulting to 'scout', so
+    callers can just use logging.getLogger(...) and pass extra={...} normally.
+    """
     root = logging.getLogger()
     root.setLevel(level.upper())
 
@@ -66,6 +88,4 @@ def configure(level: str = "INFO", agent: str = "scout") -> logging.Logger:
     handler.setFormatter(JsonFormatter())
     root.addHandler(handler)
 
-    log = logging.getLogger(agent)
-    log = logging.LoggerAdapter(log, extra={"agent": agent})  # type: ignore[assignment]
-    return log  # type: ignore[return-value]
+    return logging.getLogger(agent)

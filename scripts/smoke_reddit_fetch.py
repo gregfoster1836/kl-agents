@@ -25,9 +25,9 @@ from pathlib import Path
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup  # noqa: E402
-from agents.scout.config import ConfigError, load_reddit_only  # noqa: E402
-from agents.scout.fetchers import reddit as reddit_fetcher  # noqa: E402
+from agents.scout import logging_setup
+from agents.scout.config import ConfigError, load_reddit_only
+from agents.scout.fetchers import reddit as reddit_fetcher
 
 
 def _post_to_jsonable(post) -> dict:  # type: ignore[no-untyped-def]
