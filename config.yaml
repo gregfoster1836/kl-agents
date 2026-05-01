@@ -4,7 +4,7 @@
 
 agent:
   name: scout
-  version: 0.2.0  # bumped: multi-source
+  version: 0.2.1  # bumped: validated channel list against live YouTube API
 
 # ---------------------------------------------------------------------------
 # Sources
@@ -28,37 +28,51 @@ sources:
     default_videos_per_channel: 3
     default_comments_per_video: 50
     max_age_days: 30
-    # Channels are listed in priority order. channel_id is resolved on first
-    # successful fetch and cached back here as a code comment for readability.
+    # Channels are listed in priority order. Every handle in this list has been
+    # validated against the live YouTube Data API on 2026-05-01. channel_id is
+    # null until the fetcher resolves it on first run; future improvement is
+    # to write resolved IDs back here so we skip the resolve call.
     # Per-channel overrides for videos_per_run and comments_per_video are
-    # optional. Use them for channels that need tuning (Drew Talbert below).
+    # optional. Use them for channels with high-volume, low-signal comments.
     channels:
 
       # Tier 1: direct operator-voice and trade press
       - handle: "@RestaurantUnstoppable"
         channel_id: null
         note: "Eric Cacciatore, long-form interviews with active operators"
-      - handle: "@TheRestaurantCoach"
+      - handle: "@Therestaurantboss"
         channel_id: null
-        note: "Ryan Gromfin, The Restaurant Boss, 120k subs"
+        note: "Ryan Gromfin, The Restaurant Boss, 144k subs"
       - handle: "@MakingDoughShow"
         channel_id: null
         note: "Hengam Stanfield, active operator (Mattenga's Pizzeria)"
       - handle: "@RestaurantRockstars"
         channel_id: null
         note: "Roger Beaudoin, marketing and ops"
-      - handle: "@chefwilyeung"
-        channel_id: null
-        note: "Wil Yeung, recipe costing and menu engineering"
       - handle: "@RestaurantBusinessOnline"
         channel_id: null
         note: "A Deeper Dive podcast, trade press macro signal"
+      - handle: "@NationsRestaurantNews"
+        channel_id: null
+        note: "Trade press, second voice alongside Restaurant Business Online"
       - handle: "@andrewscott9329"
         channel_id: null
         note: "Andrew R. Scott, OwnerShift. Direct K&L competitor on BBB messaging"
+      - handle: "@DavidScottPeters"
+        channel_id: null
+        note: "Restaurant coach, operator-focused"
+      - handle: "@mikeybausch"
+        channel_id: null
+        note: "Mike Bausch, Andolini's Pizzeria operator, real owner voice"
+      - handle: "@WilsonKLee"
+        channel_id: null
+        note: "Wilson K Lee, how to open a restaurant, pure operator content"
+      - handle: "@owner-com"
+        channel_id: null
+        note: "Owner.com, small-business operator content"
 
-      # Tier 2: platform vendors with operator commenters
-      - handle: "@7shifts"
+      # Tier 2: platform vendors and adjacent operator voice
+      - handle: "@7shiftsinc"
         channel_id: null
         note: "Scheduling platform, labor-cost-focused commenters"
       - handle: "@Restaurant365"
@@ -67,11 +81,22 @@ sources:
       - handle: "@toasttab"
         channel_id: null
         note: "Toast POS, broad operator audience"
+      - handle: "@DaveAllredTheRealBarman"
+        channel_id: null
+        note: "Bar Patrol, bar/restaurant ops, big audience"
+      - handle: "@hospitalitybroadcast"
+        channel_id: null
+        note: "Industry news and commentary"
 
       # Tier 2 (limited capture): comedy with operator comment voice
       - handle: "@DrewTalbert"
         channel_id: null
         note: "Bistro Huddy. Heavy server/employee audience, occasional operator gems"
+        videos_per_run: 1
+        comments_per_video: 25
+      - handle: "@waitertheresmore"
+        channel_id: null
+        note: "Server humor, similar audience profile to Drew Talbert"
         videos_per_run: 1
         comments_per_video: 25
 

@@ -16,6 +16,7 @@ dependencies = [
     "supabase>=2.9.0",
     "python-dotenv>=1.0.1",
     "PyYAML>=6.0.2",
+    "google-api-python-client>=2.140.0",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +62,10 @@ exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
 module = ["praw", "praw.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["googleapiclient", "googleapiclient.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
