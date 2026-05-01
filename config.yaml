@@ -4,17 +4,80 @@
 
 agent:
   name: scout
-  version: 0.1.0
+  version: 0.2.0  # bumped: multi-source
 
-reddit:
-  subreddits:
-    - restaurateur
-    - KitchenConfidential
-    - smallbusiness
-  posts_per_subreddit: 50
-  sort: new
-  max_age_days: 30          # skip posts older than this
+# ---------------------------------------------------------------------------
+# Sources
+# Each source has an 'enabled' flag. Set to false to skip that source entirely
+# without removing config. The CLI flag --source overrides this for one run.
+# ---------------------------------------------------------------------------
+sources:
 
+  reddit:
+    enabled: true
+    subreddits:
+      - restaurateur
+      - KitchenConfidential
+      - smallbusiness
+    posts_per_subreddit: 50
+    sort: new
+    max_age_days: 30          # skip posts older than this
+
+  youtube:
+    enabled: true
+    default_videos_per_channel: 3
+    default_comments_per_video: 50
+    max_age_days: 30
+    # Channels are listed in priority order. channel_id is resolved on first
+    # successful fetch and cached back here as a code comment for readability.
+    # Per-channel overrides for videos_per_run and comments_per_video are
+    # optional. Use them for channels that need tuning (Drew Talbert below).
+    channels:
+
+      # Tier 1: direct operator-voice and trade press
+      - handle: "@RestaurantUnstoppable"
+        channel_id: null
+        note: "Eric Cacciatore, long-form interviews with active operators"
+      - handle: "@TheRestaurantCoach"
+        channel_id: null
+        note: "Ryan Gromfin, The Restaurant Boss, 120k subs"
+      - handle: "@MakingDoughShow"
+        channel_id: null
+        note: "Hengam Stanfield, active operator (Mattenga's Pizzeria)"
+      - handle: "@RestaurantRockstars"
+        channel_id: null
+        note: "Roger Beaudoin, marketing and ops"
+      - handle: "@chefwilyeung"
+        channel_id: null
+        note: "Wil Yeung, recipe costing and menu engineering"
+      - handle: "@RestaurantBusinessOnline"
+        channel_id: null
+        note: "A Deeper Dive podcast, trade press macro signal"
+      - handle: "@andrewscott9329"
+        channel_id: null
+        note: "Andrew R. Scott, OwnerShift. Direct K&L competitor on BBB messaging"
+
+      # Tier 2: platform vendors with operator commenters
+      - handle: "@7shifts"
+        channel_id: null
+        note: "Scheduling platform, labor-cost-focused commenters"
+      - handle: "@Restaurant365"
+        channel_id: null
+        note: "Accounting platform, prime-cost commenters"
+      - handle: "@toasttab"
+        channel_id: null
+        note: "Toast POS, broad operator audience"
+
+      # Tier 2 (limited capture): comedy with operator comment voice
+      - handle: "@DrewTalbert"
+        channel_id: null
+        note: "Bistro Huddy. Heavy server/employee audience, occasional operator gems"
+        videos_per_run: 1
+        comments_per_video: 25
+
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
 classification:
   model: claude-sonnet-4-5
   confidence_threshold: 0.6 # >= threshold marks review_status=pending, below marks auto_rejected
@@ -22,9 +85,9 @@ classification:
   retry_on_rate_limit: true
   max_retries: 3
 
-storage:
-  source_name: reddit       # written to classified_posts.source
-
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logging:
   level: INFO
   format: json

@@ -23,12 +23,13 @@ from praw.models import Submission
 from praw.reddit import Reddit
 
 from agents.scout.config import RedditConfig
-from agents.scout.models import FetchedPost
+from agents.scout.fetchers.base import FetchError
+from agents.scout.models import FetchedPost, Source
 
 log = logging.getLogger("scout")
 
 
-class RedditFetchError(Exception):
+class RedditFetchError(FetchError):
     """Raised when a subreddit cannot be read at all (auth failure, banned, etc).
     Per-post problems are logged and skipped, not raised."""
 
@@ -59,19 +60,19 @@ def _is_removed(submission: Submission) -> bool:
     return False
 
 
-def _to_fetched_post(submission: Submission, source_name: str) -> FetchedPost:
+def _to_fetched_post(submission: Submission) -> FetchedPost:
     posted_at = datetime.fromtimestamp(submission.created_utc, tz=UTC)
     author_name = submission.author.name if submission.author else None
+    subreddit_name = str(submission.subreddit.display_name)
     return FetchedPost(
-        source=source_name,
-        source_subreddit=str(submission.subreddit.display_name),
+        source=Source.REDDIT,
         source_url=f"https://www.reddit.com{submission.permalink}",
         source_id=str(submission.id),
         source_author=author_name,
         posted_at=posted_at,
         title=str(submission.title or ""),
         body=str(submission.selftext or ""),
-        is_removed=False,
+        source_metadata={"subreddit": subreddit_name},
     )
 
 
@@ -82,7 +83,6 @@ def fetch_subreddit(
     limit: int,
     sort: str,
     max_age: timedelta,
-    source_name: str = "reddit",
 ) -> list[FetchedPost]:
     """Fetch the newest N posts from one subreddit.
 
@@ -140,7 +140,7 @@ def fetch_subreddit(
                 skipped_empty += 1
                 continue
 
-            fetched.append(_to_fetched_post(submission, source_name))
+            fetched.append(_to_fetched_post(submission))
     except Exception as exc:
         log.error(
             "subreddit_stream_failed",
@@ -170,7 +170,6 @@ def fetch_subreddit(
 def fetch_all(
     cfg: RedditConfig,
     *,
-    source_name: str = "reddit",
     subreddit_override: str | None = None,
     limit_override: int | None = None,
 ) -> list[FetchedPost]:
@@ -179,6 +178,10 @@ def fetch_all(
     A failure on one subreddit does not abort the others. The caller decides
     how to summarize partial-failure runs.
     """
+    if not cfg.enabled:
+        log.info("reddit_disabled_in_config")
+        return []
+
     client = build_client(cfg)
     subreddits = (subreddit_override,) if subreddit_override else cfg.subreddits
     limit = limit_override if limit_override is not None else cfg.posts_per_subreddit
@@ -195,7 +198,6 @@ def fetch_all(
                 limit=limit,
                 sort=cfg.sort,
                 max_age=max_age,
-                source_name=source_name,
             )
             all_posts.extend(posts)
         except RedditFetchError:

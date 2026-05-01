@@ -21,6 +21,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -28,9 +29,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from agents.scout import logging_setup
 from agents.scout.config import ConfigError, load_reddit_only
 from agents.scout.fetchers import reddit as reddit_fetcher
+from agents.scout.models import FetchedPost
 
 
-def _post_to_jsonable(post) -> dict:  # type: ignore[no-untyped-def]
+def _post_to_jsonable(post: FetchedPost) -> dict[str, Any]:
     d = asdict(post)
     for key, value in d.items():
         if isinstance(value, datetime):

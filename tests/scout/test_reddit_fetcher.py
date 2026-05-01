@@ -6,6 +6,8 @@ and feed them through the fetcher's filtering logic. The goal is to verify:
 - old posts (older than max_age) are skipped
 - empty title-and-body posts are skipped
 - everything else maps cleanly into FetchedPost
+- source_metadata is populated correctly with the subreddit name
+- the source enum value is REDDIT, not a free-text typo
 
 This catches regressions in the filter logic without depending on Reddit's API
 being available, which matters because Reddit credentials are gated behind a
@@ -21,7 +23,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from agents.scout.fetchers import reddit as reddit_fetcher
-from agents.scout.models import FetchedPost
+from agents.scout.models import FetchedPost, Source
 
 # ----- Fakes ----------------------------------------------------------------
 
@@ -94,12 +96,28 @@ def test_keeps_a_normal_recent_post() -> None:
     assert len(result) == 1
     post = result[0]
     assert isinstance(post, FetchedPost)
-    assert post.source_subreddit == "restaurateur"
+    assert post.source == Source.REDDIT
+    assert post.source_metadata == {"subreddit": "restaurateur"}
     assert post.source_id == "abc"
     assert post.source_author == "an_operator"
     assert post.title == "labor cost is killing me"
     assert post.body.startswith("tried everything")
     assert post.source_url == "https://www.reddit.com/r/restaurateur/comments/abc/labor_cost/"
+
+
+def test_source_metadata_carries_subreddit_for_each_post() -> None:
+    a = FakeSubmission(post_id="a", subreddit_name="restaurateur")
+    b = FakeSubmission(post_id="b", subreddit_name="KitchenConfidential")
+    client = _client_returning([a, b])
+
+    result = reddit_fetcher.fetch_subreddit(
+        client, "ignored-by-fake", limit=10, sort="new", max_age=timedelta(days=30)
+    )
+
+    assert len(result) == 2
+    by_id = {p.source_id: p for p in result}
+    assert by_id["a"].source_metadata == {"subreddit": "restaurateur"}
+    assert by_id["b"].source_metadata == {"subreddit": "KitchenConfidential"}
 
 
 def test_skips_removed_post() -> None:
