@@ -18,7 +18,6 @@ sources:
     subreddits:
       - restaurateur
       - KitchenConfidential
-      - smallbusiness
     posts_per_subreddit: 50
     sort: new
     max_age_days: 30          # skip posts older than this
