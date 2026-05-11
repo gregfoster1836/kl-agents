@@ -49,3 +49,7 @@ htmlcov/
 logs/
 *.log
 runs/
+
+# Local tooling overlays (not project code)
+.claude/
+.obsidian/
