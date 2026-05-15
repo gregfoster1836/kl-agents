@@ -262,9 +262,20 @@ def _build_youtube(raw: dict[str, object], *, require_creds: bool) -> YouTubeCon
     )
 
 
-def load(config_path: Path | str = "config.yaml") -> Config:
+def load(
+    config_path: Path | str = "config.yaml",
+    *,
+    require_reddit_creds: bool = True,
+    require_youtube_creds: bool = True,
+) -> Config:
     """Load full configuration. Required for the orchestrator that writes to
-    Supabase. Each enabled source must have its credentials present."""
+    Supabase.
+
+    By default, each enabled source must have its credentials present. The
+    require_*_creds flags exist so the orchestrator can ask for only the
+    sources it will actually invoke (e.g. --source youtube while Reddit
+    credentials are still pending API approval).
+    """
     raw = _read_yaml(config_path)
 
     try:
@@ -291,8 +302,8 @@ def load(config_path: Path | str = "config.yaml") -> Config:
     if not isinstance(youtube_raw, dict):
         raise ConfigError("sources.youtube must be a mapping")
 
-    reddit = _build_reddit(reddit_raw, require_creds=True)
-    youtube = _build_youtube(youtube_raw, require_creds=True)
+    reddit = _build_reddit(reddit_raw, require_creds=require_reddit_creds)
+    youtube = _build_youtube(youtube_raw, require_creds=require_youtube_creds)
 
     classification = ClassificationConfig(
         model=str(classification_raw["model"]),
