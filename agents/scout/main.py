@@ -1,10 +1,10 @@
 """Scout orchestrator.
 
 Wires the multi-source pipeline together: load config, fetch from enabled
-sources, write to the review queue. Until the classifier exists, every post
-is written with a placeholder 'unclear' classification (review_status falls
-to auto_rejected), so the storage layer can be exercised end-to-end without
-classifier coupling.
+sources, classify each post against the ten K&L false beliefs, and write the
+results to the review queue. Posts that express a canonical belief with
+sufficient confidence reach the human queue; the rest land in the corpus as
+auto_rejected.
 
 CLI:
     python -m agents.scout.main                          # all enabled sources
@@ -32,6 +32,7 @@ from typing import Any, Literal
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.scout import logging_setup
+from agents.scout.classifier.ica import classify_all
 from agents.scout.config import (
     Config,
     ConfigError,
@@ -47,16 +48,24 @@ from agents.scout.storage.runs import RunHandle, finish_run, start_run
 
 SourceFilter = Literal["reddit", "youtube", "all"]
 
-# Until the classifier exists, every post gets this stand-in. ica_stage='unclear'
-# means review_status will be 'auto_rejected', which is fine: rows land in the
-# DB for the corpus, but they do not pollute the human review queue.
-_UNCLASSIFIED = Classification(
-    ica_stage="unclear",
-    confidence=0.0,
-    signal_type=None,
-    key_quote=None,
-    reasoning="classifier not yet built; placeholder pending agents/scout/classifier/ica.py",
-)
+
+def _count_queued(
+    items: list[tuple[FetchedPost, Classification]],
+    *,
+    confidence_threshold: float,
+) -> int:
+    """Count classifications that reach the human review queue.
+
+    Mirrors the gate in storage/posts.py: a post queues only when it expresses
+    a canonical false belief (signal_type is not None) AND clears the
+    confidence threshold. Kept in sync with that gate by hand; both read from
+    the same Classification fields.
+    """
+    return sum(
+        1
+        for _post, c in items
+        if c.signal_type is not None and c.confidence >= confidence_threshold
+    )
 
 
 def _post_to_jsonable(post: FetchedPost) -> dict[str, Any]:
@@ -244,7 +253,10 @@ def _run_live(
         if hit_failure:
             failed += 1
 
-    items = [(post, _UNCLASSIFIED) for post in all_posts]
+    items = classify_all(all_posts, config.classification)
+    posts_queued = _count_queued(
+        items, confidence_threshold=config.classification.confidence_threshold
+    )
     try:
         insert_result = insert_classified_posts(handle, config, items)
     except Exception as exc:
@@ -255,6 +267,7 @@ def _run_live(
             status="failed",
             posts_fetched=len(all_posts),
             insert_result=InsertResult(inserted=0, skipped=0),
+            posts_queued=0,
             error_summary=f"insert failed: {exc}",
             log=log,
         )
@@ -276,6 +289,7 @@ def _run_live(
         status=status,
         posts_fetched=len(all_posts),
         insert_result=insert_result,
+        posts_queued=posts_queued,
         error_summary=error_summary,
         log=log,
     )
@@ -302,13 +316,15 @@ def _finish_safely(
     status: Literal["success", "partial", "failed"],
     posts_fetched: int,
     insert_result: InsertResult,
+    posts_queued: int,
     error_summary: str | None,
     log: Any,
 ) -> None:
     """Wrap finish_run so a bookkeeping failure cannot mask the real error.
 
-    Until the classifier exists, posts_classified equals posts_inserted and
-    posts_queued is always zero (every row is auto_rejected).
+    posts_classified equals posts_inserted (every inserted row carries a
+    classification). posts_queued is the count that reached the human review
+    queue (belief-match + confidence), passed in by the caller.
     """
     try:
         finish_run(
@@ -318,7 +334,7 @@ def _finish_safely(
             posts_fetched=posts_fetched,
             posts_dedup_skipped=insert_result.skipped,
             posts_classified=insert_result.inserted,
-            posts_queued=0,
+            posts_queued=posts_queued,
             error_summary=error_summary,
         )
     except Exception as exc:

@@ -96,7 +96,7 @@ def _make_classification(
     *,
     stage: str = "1",
     confidence: float = 0.8,
-    signal: str | None = "work-harder-fixes-it",
+    signal: str | None = "work-harder",
 ) -> Classification:
     return Classification(
         ica_stage=stage,
@@ -362,18 +362,20 @@ def test_insert_classified_posts_maps_row_shape(monkeypatch: pytest.MonkeyPatch)
     assert row["source_url"] == post.source_url
     assert row["ica_stage"] == "1"
     assert row["confidence"] == 0.8
-    assert row["signal_type"] == "work-harder-fixes-it"
+    assert row["signal_type"] == "work-harder"
     assert row["posted_at"] == "2026-05-11T10:00:00+00:00"
     assert row["review_status"] == "pending"
 
 
-def test_review_status_pending_above_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_review_status_pending_when_belief_matched_above_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = _install_fake_client(monkeypatch)
     fake.set_response("classified_posts", [{"id": "p1"}])
     insert_classified_posts(
         RunHandle(run_id="r"),
         _make_config(threshold=0.6),
-        [(_make_post(), _make_classification(stage="2", confidence=0.6))],
+        [(_make_post(), _make_classification(signal="marketing-problem", confidence=0.6))],
     )
     assert fake.builders["classified_posts"].last_payload[0]["review_status"] == "pending"
 
@@ -384,21 +386,43 @@ def test_review_status_auto_rejected_below_threshold(monkeypatch: pytest.MonkeyP
     insert_classified_posts(
         RunHandle(run_id="r"),
         _make_config(threshold=0.6),
-        [(_make_post(), _make_classification(confidence=0.59))],
+        [(_make_post(), _make_classification(signal="marketing-problem", confidence=0.59))],
     )
     assert fake.builders["classified_posts"].last_payload[0]["review_status"] == "auto_rejected"
 
 
-def test_review_status_auto_rejected_when_stage_unclear(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_review_status_auto_rejected_when_no_belief_matched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = _install_fake_client(monkeypatch)
     fake.set_response("classified_posts", [{"id": "p1"}])
     insert_classified_posts(
         RunHandle(run_id="r"),
         _make_config(threshold=0.6),
-        # Confident, but stage is unclear: still gets auto_rejected.
-        [(_make_post(), _make_classification(stage="unclear", confidence=0.99))],
+        # Confident, but no canonical belief matched: still gets auto_rejected.
+        [(_make_post(), _make_classification(signal=None, confidence=0.99))],
     )
     assert fake.builders["classified_posts"].last_payload[0]["review_status"] == "auto_rejected"
+
+
+def test_review_status_ignores_ica_stage_when_belief_matched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The queue gate is belief-match + confidence, NOT ica_stage. A confident
+    belief match queues even when the awareness stage reads 'unclear'."""
+    fake = _install_fake_client(monkeypatch)
+    fake.set_response("classified_posts", [{"id": "p1"}])
+    insert_classified_posts(
+        RunHandle(run_id="r"),
+        _make_config(threshold=0.6),
+        [
+            (
+                _make_post(),
+                _make_classification(stage="unclear", signal="work-harder", confidence=0.8),
+            )
+        ],
+    )
+    assert fake.builders["classified_posts"].last_payload[0]["review_status"] == "pending"
 
 
 def test_dedup_skip_counted_from_response_diff(monkeypatch: pytest.MonkeyPatch) -> None:

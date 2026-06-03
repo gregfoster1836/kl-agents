@@ -30,7 +30,7 @@ from agents.scout.config import (
 )
 from agents.scout.fetchers import reddit as reddit_fetcher
 from agents.scout.fetchers import youtube as youtube_fetcher
-from agents.scout.models import FetchedPost, Source
+from agents.scout.models import Classification, FetchedPost, Source
 from agents.scout.storage.posts import InsertResult
 from agents.scout.storage.runs import RunHandle
 
@@ -125,9 +125,30 @@ def captured(monkeypatch: pytest.MonkeyPatch) -> _CapturedCalls:
     ) -> None:
         c.finished_with = kwargs
 
+    def fake_classify_all(
+        posts: list[FetchedPost],
+        _cfg: Any,
+        **_kw: Any,
+    ) -> list[Any]:
+        # Default: every post is a confident belief-match (queues).
+        return [
+            (
+                post,
+                Classification(
+                    ica_stage="2",
+                    confidence=0.9,
+                    signal_type="marketing-problem",
+                    key_quote="we just need more traffic",
+                    reasoning="stub",
+                ),
+            )
+            for post in posts
+        ]
+
     monkeypatch.setattr(orchestrator, "start_run", fake_start_run)
     monkeypatch.setattr(orchestrator, "insert_classified_posts", fake_insert)
     monkeypatch.setattr(orchestrator, "finish_run", fake_finish_run)
+    monkeypatch.setattr(orchestrator, "classify_all", fake_classify_all)
     return c
 
 
@@ -263,8 +284,57 @@ def test_live_run_success_writes_all_posts(
     assert captured.finished_with["status"] == "success"
     assert captured.finished_with["posts_fetched"] == 2
     assert captured.finished_with["posts_classified"] == 2
-    assert captured.finished_with["posts_queued"] == 0  # all auto_rejected pre-classifier
+    assert captured.finished_with["posts_queued"] == 2  # both confident belief-matches
     assert captured.finished_with["error_summary"] is None
+
+
+def test_live_run_posts_queued_counts_only_belief_matches(
+    monkeypatch: pytest.MonkeyPatch, captured: _CapturedCalls
+) -> None:
+    """posts_queued reflects the belief-match + confidence gate, not raw count.
+    Two posts fetched, but only the confident belief-match queues."""
+    post_a = _make_post(url="https://r/x/1")
+    post_b = _make_post(url="https://r/x/2")
+    _stub_fetchers(monkeypatch, reddit_posts=[post_a, post_b], youtube_posts=[])
+
+    def mixed_classify(posts: list[FetchedPost], _cfg: Any, **_kw: Any) -> list[Any]:
+        return [
+            (
+                posts[0],
+                Classification(
+                    ica_stage="2",
+                    confidence=0.9,
+                    signal_type="marketing-problem",
+                    key_quote="more traffic",
+                    reasoning="match",
+                ),
+            ),
+            (
+                posts[1],
+                Classification(
+                    ica_stage="unclear",
+                    confidence=0.95,
+                    signal_type=None,  # no belief: must not queue despite high confidence
+                    key_quote=None,
+                    reasoning="off topic",
+                ),
+            ),
+        ]
+
+    monkeypatch.setattr(orchestrator, "classify_all", mixed_classify)
+    log = orchestrator.logging_setup.configure(level="WARNING")
+
+    exit_code = orchestrator._run_live(
+        _make_config(youtube_enabled=False),
+        source_filter="reddit",
+        limit_override=None,
+        log=log,
+    )
+
+    assert exit_code == 0
+    assert captured.finished_with is not None
+    assert captured.finished_with["posts_classified"] == 2
+    assert captured.finished_with["posts_queued"] == 1  # only the belief-match
 
 
 # ----- Live run: partial failure --------------------------------------------

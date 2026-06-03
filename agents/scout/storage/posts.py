@@ -8,9 +8,13 @@ sent and rows returned tells us how many were skipped, which the
 orchestrator feeds into agent_runs.posts_dedup_skipped.
 
 review_status is derived here, not in the classifier, because the
-threshold lives in config:
-  confidence >= threshold AND ica_stage != 'unclear' -> 'pending'
-  otherwise                                          -> 'auto_rejected'
+threshold lives in config. The queue gate is belief-match + confidence:
+a post reaches the human review queue only when it expresses one of the
+canonical false beliefs (signal_type is not null) AND the classifier is
+confident enough.
+  confidence >= threshold AND signal_type is not None -> 'pending'
+  otherwise                                            -> 'auto_rejected'
+ica_stage is stored as metadata but does not drive the queue.
 """
 
 from __future__ import annotations
@@ -45,10 +49,10 @@ def _row(
     confidence_threshold: float,
 ) -> dict[str, Any]:
     """Build one classified_posts row from a fetched post + classification."""
-    above_threshold = (
-        classification.confidence >= confidence_threshold and classification.ica_stage != "unclear"
+    queues = (
+        classification.confidence >= confidence_threshold and classification.signal_type is not None
     )
-    review_status = "pending" if above_threshold else "auto_rejected"
+    review_status = "pending" if queues else "auto_rejected"
 
     return {
         "run_id": run_id,
