@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Scout scheduler — daily 7am local, when-awake catch-up.
+
+  Canonical copy lives here in the repo (version-controlled). Install copies it
+  to ~/Library/LaunchAgents/com.knifeledger.scout.plist and `launchctl bootstrap`s
+  it. See docs/scout-scheduler.md for install/uninstall/verify steps.
+
+  RunAtLoad=false  -> does not fire on load, only at the scheduled time.
+  StartCalendarInterval Hour=7 -> 07:00 local daily. If the Mac is asleep at 7,
+  launchd runs the job on the next wake (when-awake catch-up).
+  No KeepAlive -> one-shot per fire, exits when Scout exits.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.knifeledger.scout</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/gregfoster/00-coding/active/03 KL Agents/scripts/run_scout.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/gregfoster/00-coding/active/03 KL Agents</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/gregfoster/Library/Logs/kl-scout/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/gregfoster/Library/Logs/kl-scout/stderr.log</string>
+</dict>
+</plist>
