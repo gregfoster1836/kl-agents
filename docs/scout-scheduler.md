@@ -97,16 +97,18 @@ triggered:
 
 1. **`ANTHROPIC_API_KEY` empty in `.env`.** The classify step can't build a
    client. (Also blocks `scripts/smoke_classify.py`.) Fix: paste the key.
-2. **Supabase schema `agents_dev` not exposed to PostgREST.** A live run fails
-   at `start_run` with `PGRST106: Invalid schema: agents_dev — Only public,
-   graphql_public are exposed`. The schema and its tables (`agent_runs`,
-   `classified_posts`, plus Echo's `kl_*`) **exist** in project
-   `zbokrrcexjecrkpogjqv`; they're just not in the API's exposed-schemas list.
-   Fix: Supabase dashboard → Settings → API → Exposed schemas → add `agents_dev`
-   (and `agents_prod`). Verified 2026-06-03 via MCP `list_tables` that the tables
-   are present — this is an exposure toggle, not a missing migration.
+2. ~~Supabase schema `agents_dev` not exposed to PostgREST.~~ **RESOLVED
+   2026-06-03.** A live run was failing at `start_run` with `PGRST106: Invalid
+   schema: agents_dev`. Fixed by exposing `agents_dev` + `agents_prod` to
+   PostgREST and granting the API roles their privileges — now tracked as
+   `shared/db/migrations/0007_expose_schemas.sql` so a project reset can't
+   silently revert it. Verified against the live DB (`authenticator` role config
+   shows all four schemas; a real run wrote 48 rows to
+   `agents_dev.classified_posts`).
 
-Once both are resolved, a `kickstart` should log `exit 0`.
+Blocker 1 (the key) was also resolved 2026-06-03. A full `kickstart` now logs
+`exit 0` — verified: run `d24d6810` fetched + classified + inserted 48 posts,
+6 queued for review.
 
 ## Open / future
 
