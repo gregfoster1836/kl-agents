@@ -103,7 +103,7 @@ sources:
 # Classification
 # ---------------------------------------------------------------------------
 classification:
-  model: claude-sonnet-4-5
+  model: claude-haiku-4-5-20251001
   confidence_threshold: 0.6 # >= threshold marks review_status=pending, below marks auto_rejected
   max_post_chars: 8000      # truncate post body before sending to claude
   retry_on_rate_limit: true
