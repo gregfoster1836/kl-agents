@@ -50,6 +50,13 @@ logs/
 *.log
 runs/
 
-# Local tooling overlays (not project code)
-.claude/
+# Local tooling overlays (not project code) — allowlist: ignore the dir, track
+# authored knowledge. (Denylist-on-whole-dir silently loses new authored files,
+# incl. the deliberately-migrated reddit reference; see ~/.claude allowlist lesson.)
+.claude/*
+!.claude/retrieval-registry.json
+!.claude/CLAUDE.md
+!.claude/decisions.md
+!.claude/corrections.md
+!.claude/reference_reddit_api_application.md
 .obsidian/

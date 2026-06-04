@@ -1,0 +1,63 @@
+{
+  "version": "1",
+  "_doc": "Per-project retrieval registry. Global hooks read this from the nearest ancestor .claude/ of the touched file. Project-local knowledge: code + tooling fact-sources for the K&L Agentic OS (Python — Scout, Echo). Schema: ~/00-coding/active/00 K&L Vault/.claude/rules/compounding-memory-doctrine.md § retrieval FRONT gate. Authored 2026-06-03 (gap-closing sweep).",
+  "domains": [
+    {
+      "domain": "code",
+      "_note": "Authoring/modifying agent source — fetchers, classifier, storage, shared db. The front gate enforces that README + locked decisions were Read this session before the first substantive source write. Classifier logic is a high-risk zone (decisions.md: classification stays code-side); retrieval makes that constraint present before edits.",
+      "artifact_detect": {
+        "path_patterns": [
+          "agents/.*\\.py$",
+          "shared/.*\\.py$",
+          "shared/db/migrations/.*\\.sql$"
+        ],
+        "content_patterns": []
+      },
+      "fact_sources": [
+        "README.md",
+        ".claude/decisions.md",
+        "config.yaml",
+        "pyproject.toml",
+        ".claude/CLAUDE.md"
+      ],
+      "craft_sources": {
+        "build": [
+          "docs/handoff_kl-agents-scout_2026-05-13-102800.md",
+          "docs/scout-scheduler.md"
+        ]
+      },
+      "content_type_map": {
+        "build": ["scout", "echo", "fetcher", "classifier", "scheduler", "launchd"]
+      }
+    },
+    {
+      "domain": "tooling",
+      "_note": "Working with external API integrations / reference material — Reddit Data API v2, the engagement-feed extraction port (Echo). The front gate enforces the migrated reference docs were Read before authoring integration code or updating the application narrative. These are the 'don't reconstruct the API contract from memory' sources.",
+      "artifact_detect": {
+        "path_patterns": [
+          "agents/.*/fetchers/.*\\.py$",
+          ".claude/reference_.*\\.md$",
+          "docs/reference_.*\\.md$"
+        ],
+        "content_patterns": [
+          "praw",
+          "Reddit Data API",
+          "Responsible Builder"
+        ]
+      },
+      "fact_sources": [
+        ".claude/reference_reddit_api_application.md",
+        "docs/reference_kl_engagement_feed.md",
+        "config.yaml"
+      ],
+      "craft_sources": {
+        "reddit": [
+          "docs/2026-05-11 Reddit API v2 Submitted.md"
+        ]
+      },
+      "content_type_map": {
+        "reddit": ["reddit", "praw", "oauth", "subreddit"]
+      }
+    }
+  ]
+}
