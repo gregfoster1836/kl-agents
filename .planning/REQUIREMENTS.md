@@ -55,19 +55,29 @@ Acknowledged, deferred beyond the current milestone.
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SYMP-01..09 | TBD | Pending |
-| VALD-01..05 | TBD | Pending |
-| RDDT-01 | TBD | Pending |
+| SYMP-01 | Phase 1 | Pending |
+| SYMP-02 | Phase 1 | Pending |
+| SYMP-03 | Phase 1 | Pending |
+| SYMP-04 | Phase 1 | Pending |
+| SYMP-05 | Phase 1 | Pending |
+| SYMP-06 | Phase 1 | Pending |
+| SYMP-07 | Phase 1 | Pending |
+| SYMP-08 | Phase 1 | Pending |
+| SYMP-09 | Phase 1 | Pending |
+| VALD-01 | Phase 2 | Pending |
+| VALD-02 | Phase 2 | Pending |
+| VALD-03 | Phase 2 | Pending |
+| VALD-04 | Phase 2 | Pending |
+| VALD-05 | Phase 2 | Pending |
+| RDDT-01 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total (SYMP 9, VALD 5, RDDT 1)
-- Mapped to phases: 0 (pending roadmapper)
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-14*
-*Last updated: 2026-06-14 after initial definition*
+*Last updated: 2026-06-15 after roadmap creation (traceability populated, 100% coverage)*
