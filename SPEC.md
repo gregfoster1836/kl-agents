@@ -64,7 +64,8 @@ Additive to the live `classified_posts` table. New nullable columns (migration `
 - `restaurant_ops_relevant TEXT NULL`, `actionable_confidence NUMERIC(3,2) NULL`, `restaurant_ops_evidence TEXT NULL`: G3 enum + score + evidence span.
 - `kl_action_path TEXT NULL`: non-gating K&L-actionability metadata.
 - `keeper_decision TEXT NULL` (`keep`/`needs_review`/`drop`), `drop_reason TEXT NULL`, `rubric_version TEXT NULL`: observability + run-over-run comparison (Codex #9/#14).
-- **Retained, unchanged:** `signal_type` (belief slug, now description), `ica_stage` (+ its CHECK), `confidence` (signal_type certainty, NOT reused for the rubric), `key_quote`, `reasoning`, `review_status`. `symptom_tag` is also added new (it does not exist in the live table).
+- `symptom_tag TEXT NULL` and `symptom_verbatim TEXT NULL`: both added new (neither exists in the live table). `symptom_tag` is the closed-vocab framing; `symptom_verbatim` is the operator's own pain words. **`symptom_verbatim` is a hard dependency of Bucket 2 (Validation builds the probe from it), so it MUST ship in this migration** (Codex Bucket-2 #1).
+- **Retained, unchanged:** `signal_type` (belief slug, now description), `ica_stage` (+ its CHECK), `confidence` (signal_type certainty, NOT reused for the rubric), `key_quote`, `reasoning`, `review_status`.
 - All new columns **nullable, NO CHECK** (vocab not battle-tested; classifier coercion enforces enums in code). DB CHECK is a later migration once stable.
 
 **Existing rows / dedup (Codex #4):** storage dedups on unique `source_url` with `ignore_duplicates=True`, so old rows will NOT gain the new fields on rerun. **Decision: old rows stay legacy-null** (no backfill). The new gate applies to newly-harvested posts only; historical rows keep their belief-era classification. *(A backfill, if ever wanted, is an explicit upsert-update path, out of this bucket.)*
@@ -104,4 +105,95 @@ Migration comes FIRST (Codex #2: storage cannot write new columns before they ex
 - **R5, review-queue consumer compat (Codex #15):** before the flip, enumerate every consumer/query of `review_status='pending'`; confirm none assume non-null `signal_type`. Acceptance check in slice 1h.
 
 ---
-*Bucket 1 drafted 2026-06-16 from the top-down grill. Provisional until Codex review + Greg sign-off.*
+*Bucket 1 drafted 2026-06-16 from the top-down grill. Codex-APPROVED (4 rounds, PLAN-REVIEW-LOG.md). Greg signed off 2026-06-17.*
+
+---
+
+# Bucket 2: Validation Agent (v1)
+
+> The second build (after Scout re-aim). Completes one full value loop: market signal then validated opportunity. A NEW sibling agent; does not touch Scout or Echo. Terms per CONTEXT.md (The judge).
+
+## 1. Goal
+
+Validation reads Scout's re-aimed corpus, ranks by **theme** to find the market pressure with the strongest current signal, drafts a fill-in-the-blank demand-test probe from a real operator's `symptom_verbatim`, records the test, and (after Greg posts it and enters the response count) emits a verdict that GATES whether K&L builds a lead magnet. It is a symptom-ranker + test-drafter + decision-ledger with the human in the loop at the two judgment points (posting, counting). Crickets or pivot must NEVER trigger a build.
+
+## 2. What Validation does (the pipeline)
+
+| Step | Action | Automated? |
+|------|--------|------------|
+| V0 | **Preflight (fail closed, Codex #10):** assert the Bucket 1 columns exist (`keeper_decision`, `theme`, `theme_other`, `symptom_verbatim`) and `rubric_version >= bucket1_reaim_version`. If not, abort with a clear error. Bucket 2 cannot run on a pre-re-aim corpus. | Yes |
+| V1 | Read `classified_posts` where `keeper_decision='keep'`, group by **the grouping key** `coalesce(nullif(theme_other,''), theme)` (so `theme='other'` does NOT collapse novel pressures together, Codex #3), rank by signal **count** over a recent window (count-only for v1; the old `confidence` column is belief-confidence and must not be reused, Codex #2) | Yes |
+| V1b | **Sufficiency gate (Codex #7):** if top group has fewer than `MIN_THEME_SIGNALS` or corpus has fewer than `MIN_CORPUS_SIGNALS`, emit `insufficient_data` and STOP (no probe from one post) | Yes |
+| V2 | Within the top group, select the strongest `symptom_verbatim` spans as probe raw material. **Fallback (R4):** if none of the top group's signals have usable verbatim, drop to the next group or flag "theme hot, no testable verbatim" | Yes |
+| V3 | Draft a first-draft demand-test probe: "Tired of [pain from verbatim]? I put together a [tool] on [outcome]. Comment [keyword] and I'll send it." | Yes (draft only) |
+| V4 | Record the test to `validation_tests` with `status='drafted'`, `verdict='pending'` | Yes |
+| V5 | Greg refines/approves copy, posts it (`status='posted'`), later enters `response_count` (`status='counted'`) | Manual (human judgment points) |
+| V6 | Compute `verdict` from `response_count` vs. operator-set thresholds; expose buildability ONLY via `can_build_magnet()` | Yes (computed), Greg confirms |
+
+## 3. The verdict gate
+
+Two orthogonal fields (Codex #4: do not conflate lifecycle with judgment):
+- **`status`** (lifecycle): `drafted` / `posted` / `counted` / `archived`.
+- **`verdict`** (judgment, valid once `status='counted'`): `pending` / `validated` / `crickets` / `pivot`.
+
+Verdict logic:
+- **validated** = `response_count >= validate_threshold` then eligible for a magnet build.
+- **crickets** = `response_count <= crickets_threshold` then do NOT build; demand is not there.
+- **pivot** = strictly between then framing may be off; re-draft against a different `symptom_verbatim` in the same theme, do NOT build yet.
+
+> **Thresholds are OPERATOR-SET, with NO executable defaults (Codex #6).** `validate_threshold` and `crickets_threshold` are required config Greg sets from channel knowledge (audience size, typical engagement). **Missing thresholds are a startup ERROR, not a defaulted value** so a fabricated number can never drive a decision. Each test row persists the `validate_threshold`, `crickets_threshold`, and `thresholds_confirmed_by/at` it was judged under (audit trail).
+
+**Hard guardrail as STRUCTURE, not prose (Codex #5):** buildability is exposed ONLY through a single function/view `can_build_magnet(test)` that returns true **iff** `status='counted'` AND `verdict='validated'` AND thresholds were confirmed. ALL downstream code must consume `can_build_magnet()`, never a raw verdict, so a `crickets`/`pivot`/`pending`/`insufficient_data` state cannot leak a greenlight.
+
+## 4. Data model (new table `validation_tests`)
+
+New migration `0009_validation_tests.sql`, following the repo's table conventions (run_id FK to agent_runs, UUID PK, CHECK constraints, created_at, indexes, comments, schema-selector header):
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid PK | gen_random_uuid() |
+| `run_id` | uuid FK agent_runs | the Validation run that drafted it |
+| `theme` | text not null | the ranked theme being tested (matches Scout's theme vocab) |
+| `symptom_tag` | text null | the symptom framing, if the verbatim mapped to one |
+| `symptom_verbatim` | text null | the operator words the probe was built from |
+| `source_signal_id` | uuid null references classified_posts(id) | provenance FK (Codex #8: match repo's UUID-FK convention, not a URL) |
+| `probe_copy` | text not null | the demand-test post text |
+| `channel` | text null check (channel in ('li_personal','li_page','fb_page')) | constrained to known v1 channels (Codex #9; mirrors kl_comments.source) |
+| `keyword` | text null | the comment keyword the probe asks for |
+| `posted_at` | timestamptz null | when Greg posted (null until posted) |
+| `response_count` | integer null check (response_count >= 0) | Greg-entered; null until counted |
+| `status` | text not null check (status in ('drafted','posted','counted','archived')) | default 'drafted' (lifecycle) |
+| `verdict` | text not null check (verdict in ('pending','validated','crickets','pivot','insufficient_data')) | default 'pending' (judgment) |
+| `validate_threshold` | integer null | the threshold this row was judged under (audit) |
+| `crickets_threshold` | integer null | the threshold this row was judged under (audit) |
+| `thresholds_confirmed_by` | text null | who confirmed the thresholds |
+| `thresholds_confirmed_at` | timestamptz null | when |
+| `created_at` | timestamptz not null default now() | |
+
+## 5. What does NOT change / out of scope (v1)
+
+- **No automated response counting** (manual until Echo exists; no throwaway own-scraper).
+- **No autonomous posting** (Greg posts; the agent drafts).
+- **No vault `/kl:write` coupling** (probes are disposable, not published content; escalate later only if needed).
+- **Scout, Echo untouched.** Validation only READS `classified_posts` and WRITES `validation_tests`.
+- **No magnet BUILDING** (Validation gates the decision; building the magnet is downstream human/other work).
+
+## 6. Build slices
+
+| Slice | Scope | Checkpoint (done =) |
+|-------|-------|----------------------|
+| 2a | Migration `0009_validation_tests` (conventions-matched: UUID PK, run_id FK, source_signal_id FK, CHECKs, indexes, comments), applied dev then prod | table exists agents_dev then agents_prod |
+| 2b | Preflight (V0) + theme-ranker: assert Bucket 1 columns + rubric_version; group by `coalesce(nullif(theme_other,''),theme)`, rank by count, sufficiency gates (MIN_THEME_SIGNALS / MIN_CORPUS_SIGNALS then insufficient_data) | preflight fails closed on a pre-re-aim corpus; ranker returns top groups with N; thin-data emits insufficient_data; tests |
+| 2c | Probe drafter: select verbatim from top group, generate fill-in-the-blank draft; null-verbatim fallback | draft produced from real verbatim; fallback path tested; operator voice (no hype) |
+| 2d | Ledger + `can_build_magnet()`: write `validation_tests` (status/verdict split); buildability ONLY via the function | row written; `can_build_magnet()` true iff counted+validated+thresholds-confirmed; crickets/pivot/pending/insufficient_data all return false (tested) |
+| 2e | Thresholds as required config (startup error if unset; persisted per row); end-to-end dry run on real Scout corpus | Greg sets + confirms thresholds; missing-threshold aborts; one full drafted test from live corpus |
+
+## 7. Risks / open questions
+
+- **R1, depends on Scout re-aim shipped:** Validation reads `keeper_decision='keep'` + `theme`/`theme_other` + `symptom_verbatim`, all from Bucket 1 (symptom_verbatim now confirmed in Bucket 1's migration). Bucket 2 cannot start until Bucket 1 is live; the V0 preflight enforces this (fails closed).
+- **R2, thresholds unset:** verdict is meaningless until Greg sets real numbers. Resolved structurally: no executable defaults, missing thresholds abort at startup, each row records the thresholds it was judged under.
+- **R3, theme sparsity at cold start:** resolved via MIN_THEME_SIGNALS / MIN_CORPUS_SIGNALS sufficiency gates that emit `insufficient_data` rather than a one-post probe; N reported with every ranking.
+- **R4, symptom_verbatim may be null:** probe drafter falls back to the next group or flags "theme hot, no testable verbatim." Tested path.
+
+---
+*Bucket 2 drafted 2026-06-17 from the grill. Provisional until Codex review + Greg sign-off.*

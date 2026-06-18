@@ -32,7 +32,16 @@ Ubiquitous language for the kl-agents platform. Glossary only — no implementat
 
 ## The judge
 
-**Validation** — Decides what surfaced signal is worth acting on, and tests demand before K&L builds. Reads enriched signals, runs a demand test (e.g. fill-in-the-blank offer), and gates a build decision (validated / crickets / pivot). Answers: "of everything the listeners surfaced, what's worth addressing — and is the demand real?" Status: provisional spec only, not built.
+**Validation** — Decides what surfaced signal is worth acting on, and tests demand before K&L builds. Reads enriched signals, runs a demand test (fill-in-the-blank offer), and gates a build decision (validated / crickets / pivot). Answers: "of everything the listeners surfaced, what's worth addressing, and is the demand real?" Status: spec being grilled (2026-06-17); not built.
+
+**Validation v1 shape (resolved 2026-06-17):** a *symptom-ranker + test-drafter + decision-ledger*, NOT an autonomous poster/counter. Human stays in the loop at the two judgment points (posting, counting).
+- **Ranks on THEME** (dense, complete, market-true, catches novel pressure), then pulls the magnet-testable `symptom_verbatim` from the top theme's signals to write the probe. Theme finds the opportunity; verbatim makes it testable. (NOT symptom-ranked: symptom is now sparse/nullable and K&L-framed, which would re-import the belief-fit problem ADR 0001 removed.)
+- **Drafts** a first-draft demand-test probe from `symptom_verbatim` (Validation generates it; Greg refines/approves before posting). A probe is disposable, NOT published K&L content, so it does NOT route through the vault `/kl:write` toolchain in v1 (avoids a cross-repo coupling for a throwaway). Escalate to `/kl:write` only if probes later prove they need full brand polish.
+- **Records** each test (theme, symptom, copy, channel, date, keyword) to a `validation_tests` table.
+- **Demand count is MANUAL in v1** (Greg eyeballs responses, enters count + verdict). Automated counting waits for Echo (the engagement listener), which is built AFTER Validation. No throwaway own-scraper (keeps "one harvest pass, no duplicate scrapers").
+- **Gates:** validated → greenlight a magnet; crickets/pivot → do NOT build.
+
+> **Theme is the connective tissue:** Scout emits it (required) → trending counts it → Validation ranks on it. One field, three capabilities. Reinforces the build sequence.
 
 ---
 
@@ -68,6 +77,14 @@ Every kept signal is then TAGGED (description, not gate; null allowed): **theme*
 - **Layer 3 — downstream-outcome tracking (LATER milestone):** did a signal's content actually perform? Requires a closed loop that does NOT exist today (see below). Not near-term focus.
 
 **The outcome loop is OPEN, not closed (Greg, 2026-06-15):** Today: signal → review queue → Greg's head / the vault. No data path records which signal drove which content or how it performed. Closing it would span repos (kl-agents ↔ vault ↔ publish/analytics). This is a future capability to BUILD, not a measurement to turn on. **Near-term verification focus: signal quality AT THE SOURCE (layers 1-2). Get the input right before instrumenting the output.**
+
+---
+
+## Build sequence + platform posture (Greg, 2026-06-17)
+
+**Sequence: Scout re-aim → Validation → Echo.** Rationale: complete ONE full value loop (market signal → validated opportunity) before opening the second listener. Scout re-aim is first because it fixes the gate that determines whether ANY downstream agent gets good input (garbage gate → garbage corpus → Validation validates garbage). Validation second (depends on the fixed corpus). Echo third (independent listener; waits at no cost). The old symptom-extension "phase" is demoted to a single slice inside the Scout re-aim (it tags description on a gate being replaced).
+
+**Platform: LIGHT agent contract now.** Extract the EXISTING shared pattern (shared DB client, fetcher base, agent_runs + structured logging) into a thin documented "what makes a kl-agent" contract. Enough to make the next agent faster, NOT a heavy framework. **Caveat (flagged):** extract the contract against what Scout AND Validation share, not Scout alone, because Validation is NOT a listener (it reads the corpus and acts). Contract over-fit to a listener shape would break at Validation.
 
 ---
 

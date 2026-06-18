@@ -72,4 +72,47 @@ Verifies the built Scout surfaces valuable signals. **Timing (Codex #5):** basel
 Both `SPEC.md` Bucket 1 and this file go to Codex read-only. Codex hunts: schema conflicts with the live `classified_posts`, the theme-vocab groupability hole (R1), whether the rubric is actually machine-judgeable, calibration/observability gaps, simpler alternatives, and any place "actionable" smuggles belief-fit back in. Loop until `VERDICT: APPROVED` or MAX_ROUNDS. Log to `PLAN-REVIEW-LOG.md`.
 
 ---
+
+# Bucket 2: Validation Agent (v1)
+
+## A. Artifact verifier (mechanical, pass = 100%)
+
+Run against `SPEC.md` Bucket 2. Binary checks.
+
+**Structure (all 7 sections present, in order):**
+- [ ] 1. Goal: one paragraph; names theme-ranks/verbatim-fills and the human-in-loop points
+- [ ] 2. What Validation does: a step table (V1-V6) marking which steps are automated vs manual
+- [ ] 3. The verdict gate: `validated`/`crickets`/`pivot`/`pending` enum with threshold logic
+- [ ] 4. Data model: `validation_tests` table with columns + types, matching repo conventions (run_id FK, UUID PK, CHECK, created_at)
+- [ ] 5. What does NOT change / out of scope: names no-auto-count, no-auto-post, no-/kl:write-coupling, Scout/Echo untouched, no magnet-building
+- [ ] 6. Build slices: table; every slice has a checkpoint
+- [ ] 7. Risks: names the hard Scout-re-aim dependency (R1) and the unset-thresholds risk (R2)
+
+**Content correctness:**
+- [ ] Ranks on THEME (not symptom); states why (sparsity/belief-fit), consistent with ADR 0001
+- [ ] Verdict thresholds are operator-set params; any default is flagged as placeholder, NOT asserted as a K&L-grounded number
+- [ ] Crickets/pivot structurally CANNOT emit a build-greenlight (hard guardrail stated)
+- [ ] Demand count is manual v1; no throwaway own-scraper (one-harvest-pass principle)
+- [ ] `validation_tests` only WRITES; agent only READS `classified_posts` (no Scout/Echo mutation)
+
+**Mechanics:**
+- [ ] Zero em-dashes in the bucket
+- [ ] No fabricated thresholds/stats asserted as real
+
+**Pass condition:** every box checked. Miss then auto-fix + re-verify.
+
+## B. Outcome verifier (real-data)
+
+Validation has TWO things to verify: did it pick the right thing to test, and does the gate behave.
+
+- **Ranking quality (human-graded):** on a real Scout corpus, Validation outputs its top-3 themes + the probe it drafted. Greg judges: is the top theme actually what operators are most exercised about right now? Is the drafted probe testable (would an operator comment)? Pass = Greg agrees the top pick is plausible AND the probe is postable with light edits. Report N (corpus size) so thin-data picks are visible (R3).
+- **Gate correctness (deterministic):** unit-level. Feed response_counts around the thresholds; assert validated/crickets/pivot map correctly and crickets/pivot NEVER greenlight. Pass = 100% (it is a pure function once thresholds are set).
+- **Codex cross-check:** Codex independently ranks the same corpus by theme and drafts a probe; compare to Validation's pick. Divergence flags ranking-logic or rubric ambiguity.
+- **Deferred:** real demand outcome (did validated tests actually convert) needs the live posting loop; tracked once tests run, not a build-gate for v1.
+
+## C. Codex adversarial review (Bucket 2 spec, before build)
+
+`SPEC.md` Bucket 2 + this section go to Codex read-only. Codex hunts: `validation_tests` schema conflicts with repo conventions, whether theme-ranking is well-defined on the real `classified_posts` shape, the null-`symptom_verbatim` fallback (R4), cold-start thin-data handling, any path where crickets/pivot could leak a build-greenlight, the dependency on Bucket 1 fields existing, and simpler alternatives. Loop until `VERDICT: APPROVED` or MAX_ROUNDS. Log to `PLAN-REVIEW-LOG.md`.
+
+---
 *Bucket 1 eval drafted 2026-06-16. Pass bars set with Greg (≥80% / 20-signal sample).*
