@@ -80,20 +80,24 @@ Both `SPEC.md` Bucket 1 and this file go to Codex read-only. Codex hunts: schema
 Run against `SPEC.md` Bucket 2. Binary checks.
 
 **Structure (all 7 sections present, in order):**
-- [ ] 1. Goal: one paragraph; names theme-ranks/verbatim-fills and the human-in-loop points
-- [ ] 2. What Validation does: a step table (V1-V6) marking which steps are automated vs manual
-- [ ] 3. The verdict gate: `validated`/`crickets`/`pivot`/`pending` enum with threshold logic
-- [ ] 4. Data model: `validation_tests` table with columns + types, matching repo conventions (run_id FK, UUID PK, CHECK, created_at)
-- [ ] 5. What does NOT change / out of scope: names no-auto-count, no-auto-post, no-/kl:write-coupling, Scout/Echo untouched, no magnet-building
-- [ ] 6. Build slices: table; every slice has a checkpoint
-- [ ] 7. Risks: names the hard Scout-re-aim dependency (R1) and the unset-thresholds risk (R2)
+- [ ] 1. Goal: one paragraph; names the theme-rank REPORT + thin ledger + human-in-loop points; states the v1 report-first scope decision
+- [ ] 2. What Validation does: a step table marking automated (V0-V2 report) vs manual (V3-V5 ledger); names the v2-deferred drafter
+- [ ] 3. The verdict gate: `validated`/`crickets`/`pivot`/`pending` enum with threshold logic; lifecycle is `posted`/`counted`/`archived` (no `drafted` in v1)
+- [ ] 4. Data model: thin `validation_tests` ledger with columns + types, repo conventions (run_id FK, UUID PK, CHECK, created_at); report writes nothing to it
+- [ ] 5. What does NOT change / out of scope: names no-LLM-drafting (v2), no-agent-drafted-rows, no-auto-count, no-auto-post, no-/kl:write-coupling, Scout/Echo untouched, no magnet-building
+- [ ] 6. Build slices: table; every slice has a checkpoint; 2c is the read-only report emitter (DB-write-free)
+- [ ] 7. Risks: names the hard Scout-re-aim dependency (R1), unset-thresholds (R2), and the v1-too-manual risk (R5)
 
 **Content correctness:**
 - [ ] Ranks on THEME (not symptom); states why (sparsity/belief-fit), consistent with ADR 0001
-- [ ] Verdict thresholds are operator-set params; any default is flagged as placeholder, NOT asserted as a K&L-grounded number
-- [ ] Crickets/pivot structurally CANNOT emit a build-greenlight (hard guardrail stated)
+- [ ] v1 scope is report+ledger-first; LLM probe-drafting + `drafted` lifecycle explicitly DEFERRED to v2 with rationale (don't build an unvalidated agent feature before the loop surfaces one signal)
+- [ ] Verdict thresholds are operator-set params; NO executable default (missing = startup error), NOT asserted as a K&L-grounded number
+- [ ] Crickets/pivot structurally CANNOT emit a build-greenlight; `can_build_magnet()` is the sole buildability surface, ported onto the thin ledger
+- [ ] **Ledger row integrity (CHECKs, not just can_build_magnet):** 3-state lifecycle (posted/counted/archived) coupling stated (posted then verdict=pending + count null; counted then count + thresholds + thresholds_confirmed non-null + verdict!=pending; archived RETAINS counted outcome, never reset to pending); threshold ordering `validate > crickets >= 0` (startup + row CHECK); provenance floor via `selection_source` (NOT NULL, no default; no orphaned report-backed row); the CHECK and `can_build_magnet()` cannot disagree (validated requires confirmed thresholds)
+- [ ] Ranks on THEME explicitly because theme is dense/required and symptom is sparse/K&L-framed (would fragment counts + smuggle belief-fit, contra ADR 0001)
+- [ ] V0 preflight checks ELIGIBLE ROWS (keep + theme non-null + rubric_version), not just column existence; excludes + COUNTS legacy-null rows in diagnostics; zero-eligible then insufficient_data not error; sufficiency gate uses MIN_ELIGIBLE_CORPUS_SIGNALS (eligible rows only, not total window)
 - [ ] Demand count is manual v1; no throwaway own-scraper (one-harvest-pass principle)
-- [ ] `validation_tests` only WRITES; agent only READS `classified_posts` (no Scout/Echo mutation)
+- [ ] Report is read-only (writes nothing to `validation_tests`); agent only READS `classified_posts` + writes its own `agent_runs` log; Greg writes the ledger (no Scout/Echo mutation)
 
 **Mechanics:**
 - [ ] Zero em-dashes in the bucket
@@ -103,16 +107,16 @@ Run against `SPEC.md` Bucket 2. Binary checks.
 
 ## B. Outcome verifier (real-data)
 
-Validation has TWO things to verify: did it pick the right thing to test, and does the gate behave.
+Validation v1 has TWO things to verify: did the REPORT surface the right thing to test, and does the gate behave.
 
-- **Ranking quality (human-graded):** on a real Scout corpus, Validation outputs its top-3 themes + the probe it drafted. Greg judges: is the top theme actually what operators are most exercised about right now? Is the drafted probe testable (would an operator comment)? Pass = Greg agrees the top pick is plausible AND the probe is postable with light edits. Report N (corpus size) so thin-data picks are visible (R3).
-- **Gate correctness (deterministic):** unit-level. Feed response_counts around the thresholds; assert validated/crickets/pivot map correctly and crickets/pivot NEVER greenlight. Pass = 100% (it is a pure function once thresholds are set).
-- **Codex cross-check:** Codex independently ranks the same corpus by theme and drafts a probe; compare to Validation's pick. Divergence flags ranking-logic or rubric ambiguity.
-- **Deferred:** real demand outcome (did validated tests actually convert) needs the live posting loop; tracked once tests run, not a build-gate for v1.
+- **Report quality (human-graded):** on a real Scout corpus, the report outputs its top-3 theme groups (with N + window) and the candidate verbatims under each. Greg judges: is the top theme actually what operators are most exercised about right now? Are the surfaced verbatims usable raw material (could Greg hand-write a postable probe from one)? Pass = Greg agrees the top pick is plausible AND at least one verbatim under it is probe-worthy. Thin-data corpora must show `insufficient_data` instead of a confident pick (R3). *(No drafted-probe grading in v1; there is no drafter.)*
+- **Gate correctness (deterministic):** unit-level. Feed response_counts around the thresholds; assert validated/crickets/pivot map correctly and crickets/pivot/pending NEVER greenlight via `can_build_magnet()`. Pass = 100% (pure function once thresholds set).
+- **Codex cross-check:** Codex independently ranks the same corpus by theme; compare to the report's ranking. Divergence flags ranking-logic or grouping-key ambiguity.
+- **Deferred:** real demand outcome (did validated tests convert) needs the live posting loop; tracked once tests run, not a build-gate for v1. The v2 LLM drafter gets its own outcome verifier when built.
 
 ## C. Codex adversarial review (Bucket 2 spec, before build)
 
-`SPEC.md` Bucket 2 + this section go to Codex read-only. Codex hunts: `validation_tests` schema conflicts with repo conventions, whether theme-ranking is well-defined on the real `classified_posts` shape, the null-`symptom_verbatim` fallback (R4), cold-start thin-data handling, any path where crickets/pivot could leak a build-greenlight, the dependency on Bucket 1 fields existing, and simpler alternatives. Loop until `VERDICT: APPROVED` or MAX_ROUNDS. Log to `PLAN-REVIEW-LOG.md`.
+`SPEC.md` Bucket 2 + this section go to Codex read-only. Codex hunts: `validation_tests` schema conflicts with repo conventions, whether theme-ranking is well-defined on the real `classified_posts` shape, the null-`symptom_verbatim` fallback (R4), cold-start thin-data handling, any path where crickets/pivot could leak a build-greenlight, the dependency on Bucket 1 fields existing, **dead spec or accidental scope re-expansion** (the v1 report-first scope is LOCKED 2026-06-19; re-proposing the LLM drafter is out of bounds). Loop until `VERDICT: APPROVED` or MAX_ROUNDS. Log to `PLAN-REVIEW-LOG.md`.
 
 ---
 *Bucket 1 eval drafted 2026-06-16. Pass bars set with Greg (≥80% / 20-signal sample).*
