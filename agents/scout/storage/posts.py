@@ -24,8 +24,8 @@ from typing import Any
 
 from agents.scout.config import Config
 from agents.scout.models import Classification, FetchedPost
-from agents.scout.storage.runs import RunHandle
 from shared.db.client import get_client
+from shared.runs import RunHandle
 
 
 @dataclass(frozen=True, slots=True)
