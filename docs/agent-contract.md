@@ -35,18 +35,23 @@ a reimplementation:
 
 ### 2. Config surface (`shared/runs.KLAgentConfig`)
 
-The agent's config object MUST expose exactly what the lifecycle reads:
+The agent's config object MUST expose exactly what the run lifecycle reads.
+These three are the `KLAgentConfig` Protocol members:
 
 | Member | Type | Notes |
 |---|---|---|
 | `agent_name` | `str` | written to `agent_runs.agent_name` |
-| `agent_version` | `str` | carried in the snapshot |
 | `snapshot` | `dict[str, object]` | **a property/attribute, accessed as `config.snapshot` (never called).** Secrets stripped. Stored as `agent_runs.config_snapshot`. |
 | `storage` | `StorageConfig` | from `shared/config.py`; connects to the shared backend |
 
+`agent_version` is also expected on a config, but it is carried INSIDE the
+snapshot (`snapshot["agent"]["version"]`), not read directly by the lifecycle,
+so it is not a Protocol member.
+
 `KLAgentConfig` is a `runtime_checkable` Protocol. An agent config that misses a
-member fails the contract check (requirement 5 / slice 3f). Scout's
-`agents/scout/config.Config` is the reference: note `snapshot` is a `@property`.
+member fails the contract check (`tests/shared/test_contract_surface.py`).
+Scout's `agents/scout/config.Config` is the reference: note `snapshot` is a
+`@property`.
 
 ### 3. Structured logging via `shared/logging_setup.py`
 
