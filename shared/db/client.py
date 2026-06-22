@@ -13,7 +13,7 @@ from __future__ import annotations
 from supabase import Client, create_client
 from supabase.client import ClientOptions
 
-from agents.scout.config import StorageConfig
+from shared.config import StorageConfig
 
 _client: Client | None = None
 _bound_schema: str | None = None
