@@ -68,4 +68,4 @@ Ordered so the dependency seam is cut before anything builds on it. **Migration 
 
 **Codex review: APPROVED (converged in 4 rounds, 2026-06-21).** Thread `019eece4-32dd-7250-86bf-70e4d07fcd21`; round-by-round in `PLAN-REVIEW-LOG.md` (Bucket 3 section). 17 findings across rounds 1-3, all accepted + applied; round 4 clean sweep.
 
-**AWAITING GREG FINAL SIGN-OFF before any code** - same gate Buckets 1+2 passed. (Bucket 2 also still awaits Greg's personal sign-off; both are Codex-APPROVED, neither Greg-signed.)
+**Greg signed off 2026-06-21.** Same gate Buckets 1+2 passed. Cleared to build, slice 3a -> 3f as specified above. Bucket 3 provides the spine Validation builds on, so it lands first in code (before Bucket 2's build).

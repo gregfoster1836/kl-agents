@@ -223,4 +223,4 @@ Coupling CHECK: `(status='posted' AND verdict='pending' AND response_count IS NU
 - **R5 (v1 scope, new):** v1 deliberately omits LLM drafting and the `drafted` lifecycle. The risk is that the report-then-hand-write loop is too manual to sustain. Mitigation: that is the point of v1. Run it 3-5 times, and the friction observed is the spec for v2's drafter. If it is NOT too manual, the drafter may never be needed.
 
 ---
-*Bucket 2 drafted 2026-06-17 from the grill. Re-scoped 2026-06-19 to report+ledger-first (Greg, closing Codex #11). Codex-APPROVED 2026-06-19 (4 rounds, PLAN-REVIEW-LOG.md). Awaiting Greg final sign-off.*
+*Bucket 2 drafted 2026-06-17 from the grill. Re-scoped 2026-06-19 to report+ledger-first (Greg, closing Codex #11). Codex-APPROVED 2026-06-19 (4 rounds, PLAN-REVIEW-LOG.md). Greg signed off 2026-06-21.*
