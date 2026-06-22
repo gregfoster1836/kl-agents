@@ -95,3 +95,42 @@ Re-reviewed the re-scoped (report-first) Bucket 2. 8 findings, VERDICT: REVISE. 
 ## Round 4: Codex (resume, read-only)
 
 Codex walked the coupling-CHECK truth table (fresh insert, post->counted, counted->archived, direct archived insert): admits exactly the valid states, rejects exactly the lying ones, no valid operational state accidentally rejected. Confirmed archived preserves outcome AND denies greenlight without a special clause; the 3 CHECKs don't conflict; SPEC.md/SPEC-EVAL.md aligned. One non-blocking impl reminder (test `archived+validated => can_build_magnet=false`) folded into slice 2d. **VERDICT: APPROVED.** Converged in 4 rounds. Awaiting Greg final sign-off before any code.
+
+# Plan Review Log: Light Agent Platform Contract (Bucket 3)
+
+Plan: `PLAN.md` (Bucket 3). Act 1 = grill-with-docs, re-shaped: Claude decided mechanical branches with stated defaults; Greg decided the two judgment branches (Decision A: agent_runs core columns + JSONB metrics; Decision B: generalize where free, zero speculative code). Codex thread `019eece4-32dd-7250-86bf-70e4d07fcd21` (fresh, separate from Buckets 1+2). Read-only every round. MAX_ROUNDS=5. Adversarial target: does the extraction cut the real seam without breaking live Scout, mishandling agent_runs history, or exceeding the Q1 "unblock Validation or fix a real seam" rule.
+
+## Round 1: Codex (thread 019eece4-32dd-7250-86bf-70e4d07fcd21)
+
+10 findings, VERDICT: REVISE. All 10 verified against live code and accepted + applied:
+- #1: slice order wrote `metrics` (3b) BEFORE the migration adding it (3c) -> "column does not exist" window. Fix: reordered - migration is now 3b, lifecycle code 3c.
+- #2: fetcher-base move is NOT free - `fetchers/base.py:16` imports `agents.scout.models`, so moving to `shared/` re-introduces a `shared->agents` violation (or forces models to move, scope Validation doesn't need). Fix: DEFERRED out of Bucket 3 to the 3rd-source slice; dropped from 3d.
+- #3: "grep-asserted" import invariant is noisy (matches comments/prose). Fix: AST-based test over `shared/**/*.py` rejecting import roots == `agents`.
+- #4: missed non-main callers of old `finish_run` kwargs - `scripts/smoke_storage.py:183` + tests `test_orchestrator.py`/`test_storage.py`. Fix: 3c updates ALL callers + tests; no shim (we own every caller).
+- #5: "cut straight to metrics" risks breaking column-level run totals; `agent_runs` is shared with Echo (migrations/README.md:9). Fix: transition mirror-write (metrics + nullable legacy counts); remove legacy writes in a later bucket after Echo+dashboard audit.
+- #6: migration didn't backfill `metrics` for existing Scout history -> reports silently zero old runs. Fix: `0010` backfills metrics from the four count columns where agent_name='scout'.
+- #7: `finish_run(metrics)` accepts non-JSON-safe / misleading payloads, rejected late+opaquely by JSONB. Fix: `MetricValue = str|int|float|bool|None` (flat scalars), validate before write, test rejection.
+- #8: status semantics listener-biased - `0001_agent_runs.sql:30` defines `partial` as "some subreddits failed". Fix: rewrite comment agent-neutral in 3b; contract states `partial` OPTIONAL.
+- #9: logging not fully agent-agnostic - formatter `logging_setup.py:58` does `getattr(record,"agent","scout")`, a second hardcoded default beyond `configure`. Fix: drop BOTH defaults; required agent name; update Scout callers.
+- #10: contract's `snapshot: dict` imprecise - Scout implements it as a `@property` (`config.py:90`), Validation might use a method. Fix: contract specifies property/attribute access; enforce via `KLAgentConfig` Protocol.
+
+Note on the resume: round-1 launch had been interrupted in a prior session (mechanics, not a plan defect - the saved prompt was sound). Re-ran as a fresh `codex exec -s read-only`. Round 2 = resume this thread.
+
+## Round 2: Codex (resume, read-only)
+
+Confirmed 7 round-1 fixes close (#1 ordering, #2 fetcher defer, #3 AST test, #5 mirror-write, #7 MetricValue, #8 optional partial, #10 snapshot). 6 new findings - round-1 fixes exposed follow-on breaks. VERDICT: REVISE. All 6 accepted + applied:
+- #1: Goal + Decision B prose still extracted "fetcher base" while slices correctly deferred it (self-contradiction). Fix: Goal/Decision B now state the defer + the `agents.scout.models` reason; Q1 floor overrides Decision B.
+- #2 (the deep one): logging fix was incomplete. `configure(agent="scout")` does NOT set `record.agent` - `getLogger(agent)` only sets `record.name`; today the `"agent"` field comes ENTIRELY from the formatter fallback. Removing the fallback (r1 #9) without another source breaks EVERY log line + `getLogger("scout")` fetcher loggers. Fix: inject agent at `JsonFormatter.__init__(agent)`, emit directly, no record lookup, no fallback.
+- #3: 3d missed the 8 `configure()` call sites in `test_orchestrator.py` (+ smoke_youtube/smoke_reddit) that pass only `level=`; required-arg change breaks them. Fix: 3d lists all call sites.
+- #4: deleting `storage/runs.py` breaks `storage/posts.py:27` (imports `RunHandle`), not listed. Fix: 3c repoints posts.py too; full importer set enumerated.
+- #5: stale slice ref - the "all callers" bullet said 3b, but lifecycle code is now 3c. Fix: corrected to 3c.
+- #6: backfill compared `metrics = '{}'` (implicit cast). Fix: `metrics = '{}'::jsonb`.
+
+## Round 3: Codex (resume, read-only)
+
+Confirmed all 6 round-2 fixes close (no metrics-write before 3b; formatter-injected agent covers all log paths; configure() call sites complete; deleted-module importer set complete incl. posts.py; 3c ref corrected; jsonb cast right). 1 new finding, VERDICT: REVISE:
+- #1: a stale "Key decisions & tradeoffs" bullet ("Why generalize the fetcher/logging moves") still called the fetcher move "free generality / already agent-agnostic / softest deferrable" - reintroducing the round-1 false premise. Fix: split into "Why move logging" (real seam) + "Why DEFER the fetcher base" (imports agents.scout.models, not free).
+
+## Round 4: Codex (resume, read-only)
+
+Final whole-doc consistency sweep: fetcher-base uniformly DEFERRED everywhere (Goal, Decision B, mechanical branches, key decisions, slices, risks, out-of-scope), no residual "free/agent-agnostic/extract it" language, no regression across rounds 1-3. **VERDICT: APPROVED.** Converged in 4 rounds. Awaiting Greg final sign-off before any code. (Bucket 3 Codex thread: `019eece4-32dd-7250-86bf-70e4d07fcd21`.)
