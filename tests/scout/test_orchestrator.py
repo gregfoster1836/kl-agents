@@ -244,7 +244,7 @@ def test_dry_run_does_not_call_storage(
     monkeypatch: pytest.MonkeyPatch, captured: _CapturedCalls
 ) -> None:
     _stub_fetchers(monkeypatch, reddit_posts=[_make_post()])
-    log = orchestrator.logging_setup.configure(level="WARNING")
+    log = orchestrator.logging_setup.configure(level="WARNING", agent="scout")
 
     exit_code = orchestrator._run_dry(
         _make_config(youtube_enabled=False),
@@ -268,7 +268,7 @@ def test_live_run_success_writes_all_posts(
     reddit_post = _make_post(url="https://r/x/1")
     youtube_post = _make_post(source=Source.YOUTUBE, url="https://y/1")
     _stub_fetchers(monkeypatch, reddit_posts=[reddit_post], youtube_posts=[youtube_post])
-    log = orchestrator.logging_setup.configure(level="WARNING")
+    log = orchestrator.logging_setup.configure(level="WARNING", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(),
@@ -323,7 +323,7 @@ def test_live_run_posts_queued_counts_only_belief_matches(
         ]
 
     monkeypatch.setattr(orchestrator, "classify_all", mixed_classify)
-    log = orchestrator.logging_setup.configure(level="WARNING")
+    log = orchestrator.logging_setup.configure(level="WARNING", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(youtube_enabled=False),
@@ -350,7 +350,7 @@ def test_live_run_partial_when_one_source_fails_and_other_lands(
         reddit_raises=reddit_fetcher.RedditFetchError("auth"),
         youtube_posts=[_make_post(source=Source.YOUTUBE, url="https://y/1")],
     )
-    log = orchestrator.logging_setup.configure(level="CRITICAL")
+    log = orchestrator.logging_setup.configure(level="CRITICAL", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(),
@@ -377,7 +377,7 @@ def test_live_run_failed_when_both_sources_fail(
         reddit_raises=reddit_fetcher.RedditFetchError("auth"),
         youtube_raises=youtube_fetcher.YouTubeFetchError("quota"),
     )
-    log = orchestrator.logging_setup.configure(level="CRITICAL")
+    log = orchestrator.logging_setup.configure(level="CRITICAL", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(),
@@ -404,7 +404,7 @@ def test_live_run_treats_unexpected_fetch_error_as_source_failure(
         reddit_raises=RuntimeError("network blip"),
         youtube_posts=[_make_post(source=Source.YOUTUBE, url="https://y/1")],
     )
-    log = orchestrator.logging_setup.configure(level="CRITICAL")
+    log = orchestrator.logging_setup.configure(level="CRITICAL", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(),
@@ -427,7 +427,7 @@ def test_live_run_exits_2_when_start_run_fails(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(orchestrator, "start_run", raising_start_run)
     _stub_fetchers(monkeypatch, reddit_posts=[_make_post()])
-    log = orchestrator.logging_setup.configure(level="CRITICAL")
+    log = orchestrator.logging_setup.configure(level="CRITICAL", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(),
@@ -455,7 +455,7 @@ def test_live_run_routes_finish_through_the_safe_wrapper(
     tests/shared/test_runs.py::test_finish_safely_swallows_bookkeeping_failure.
     """
     _stub_fetchers(monkeypatch, reddit_posts=[_make_post()])
-    log = orchestrator.logging_setup.configure(level="CRITICAL")
+    log = orchestrator.logging_setup.configure(level="CRITICAL", agent="scout")
 
     exit_code = orchestrator._run_live(
         _make_config(youtube_enabled=False),

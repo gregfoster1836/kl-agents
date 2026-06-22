@@ -27,10 +27,10 @@ from pathlib import Path
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup
 from agents.scout.config import ConfigError, load
 from agents.scout.models import Classification, FetchedPost, Source
 from agents.scout.storage.posts import insert_classified_posts
+from shared import logging_setup
 from shared.db.client import get_client
 from shared.runs import finish_run, start_run
 
@@ -99,7 +99,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    log = logging_setup.configure(level="INFO")
+    log = logging_setup.configure(level="INFO", agent="scout")
 
     # Guard: this script must never run against agents_prod.
     try:

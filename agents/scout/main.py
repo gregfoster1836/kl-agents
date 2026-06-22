@@ -31,7 +31,6 @@ from typing import Any, Literal
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup
 from agents.scout.classifier.ica import classify_all
 from agents.scout.config import (
     Config,
@@ -44,6 +43,7 @@ from agents.scout.fetchers import reddit as reddit_fetcher
 from agents.scout.fetchers import youtube as youtube_fetcher
 from agents.scout.models import Classification, FetchedPost
 from agents.scout.storage.posts import InsertResult, insert_classified_posts
+from shared import logging_setup
 from shared.runs import RunHandle, finish_safely, start_run, status_to_exit_code
 
 SourceFilter = Literal["reddit", "youtube", "all"]
@@ -383,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    log = logging_setup.configure(level="INFO")
+    log = logging_setup.configure(level="INFO", agent="scout")
 
     source_filter: SourceFilter = args.source
 
