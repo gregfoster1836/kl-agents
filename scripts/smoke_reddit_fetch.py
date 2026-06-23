@@ -26,10 +26,10 @@ from typing import Any
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup
 from agents.scout.config import ConfigError, load_reddit_only
 from agents.scout.fetchers import reddit as reddit_fetcher
 from agents.scout.models import FetchedPost
+from shared import logging_setup
 
 
 def _post_to_jsonable(post: FetchedPost) -> dict[str, Any]:
@@ -60,7 +60,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    log = logging_setup.configure(level="INFO")
+    log = logging_setup.configure(level="INFO", agent="scout")
 
     try:
         cfg = load_reddit_only(args.config)

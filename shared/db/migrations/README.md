@@ -13,6 +13,7 @@ SQL migrations for the kl-agents Supabase project. Apply in numeric order.
 | `0005_kl_commenter_profiles.sql` | Echo: classifier cache. One row per distinct commenter profile_url. Partial index on `retry_next_run`. |
 | `0006_echo_rls.sql` | Echo: enable RLS on the three Echo tables to match Scout's posture. service_role bypasses by default; anon/authenticated get zero rows. |
 | `0007_expose_schemas.sql` | **Project-global (NOT per-schema).** Adds `agents_dev` + `agents_prod` to PostgREST's exposed-schema list and grants the API roles USAGE + service_role table/sequence privileges (incl. default privileges for future tables). Without it, REST calls fail `PGRST106: Invalid schema`. Apply ONCE for the whole project — do not wrap in `set search_path`. |
+| `0008_agent_runs_metrics.sql` | Per-schema. Adds `metrics jsonb not null default '{}'` to `agent_runs`; relaxes the four Scout-shaped count columns (`posts_*`) to nullable + deprecated; backfills `metrics` from those counts for existing Scout rows; rewrites the `status` comment agent-neutral. The agent-platform contract (Bucket 3) owns the universal columns; each agent writes its own metrics into `metrics`. Applied to agents_dev + agents_prod 2026-06-22. Physically dropping the deprecated `posts_*` columns is a later migration, after Echo + dashboards stop reading them. |
 
 ## How to apply
 

@@ -34,8 +34,8 @@ from agents.scout.config import (
 from agents.scout.models import Classification, FetchedPost, Source
 from agents.scout.storage import posts as posts_mod
 from agents.scout.storage.posts import InsertResult, insert_classified_posts
-from agents.scout.storage.runs import RunHandle, finish_run, start_run
 from shared.db import client as client_mod
+from shared.runs import RunHandle
 
 # ----- Helpers --------------------------------------------------------------
 
@@ -205,119 +205,16 @@ def test_get_client_refuses_schema_change(monkeypatch: pytest.MonkeyPatch) -> No
         client_mod.get_client(_make_config(schema="agents_prod").storage)
 
 
-# ----- agents/scout/storage/runs.py -----------------------------------------
+# ----- run lifecycle ---------------------------------------------------------
+# start_run / finish_run moved to shared/runs.py (Bucket 3, slice 3c). Their
+# tests now live in tests/shared/test_runs.py. RunHandle is imported from
+# shared.runs above and still used by the posts tests below.
 
 
 def _install_fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeClient:
     fake = FakeClient()
     monkeypatch.setattr(client_mod, "create_client", lambda *a, **k: fake)
     return fake
-
-
-def test_start_run_inserts_running_row_with_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [{"id": "11111111-1111-1111-1111-111111111111"}])
-
-    config = _make_config()
-    handle = start_run(config)
-
-    assert handle.run_id == "11111111-1111-1111-1111-111111111111"
-    builder = fake.builders["agent_runs"]
-    assert builder.last_op == "insert"
-    payload = builder.last_payload
-    assert payload["agent_name"] == "scout"
-    assert payload["status"] == "running"
-    # Snapshot is the secrets-stripped Config.snapshot.
-    assert payload["config_snapshot"]["agent"] == {"name": "scout", "version": "0.1.0"}
-    assert "supabase_service_role_key" not in str(payload["config_snapshot"])
-
-
-def test_start_run_raises_when_insert_returns_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [])
-    with pytest.raises(RuntimeError, match="no rows"):
-        start_run(_make_config())
-
-
-def test_start_run_raises_when_row_has_no_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [{"agent_name": "scout"}])
-    with pytest.raises(RuntimeError, match="no id"):
-        start_run(_make_config())
-
-
-def test_finish_run_updates_row_and_sets_counts(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [{"id": "abc"}])
-    config = _make_config()
-    handle = RunHandle(run_id="abc")
-
-    finish_run(
-        handle,
-        config,
-        status="success",
-        posts_fetched=10,
-        posts_dedup_skipped=2,
-        posts_classified=8,
-        posts_queued=5,
-    )
-
-    builder = fake.builders["agent_runs"]
-    assert builder.last_op == "update"
-    assert builder.last_eq == ("id", "abc")
-    payload = builder.last_payload
-    assert payload["status"] == "success"
-    assert payload["posts_fetched"] == 10
-    assert payload["posts_dedup_skipped"] == 2
-    assert payload["posts_classified"] == 8
-    assert payload["posts_queued"] == 5
-    assert "finished_at" in payload  # ISO timestamp set client-side
-    assert "error_summary" not in payload  # omitted when None
-
-
-def test_finish_run_includes_error_summary_when_provided(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [{"id": "abc"}])
-    finish_run(
-        RunHandle(run_id="abc"),
-        _make_config(),
-        status="partial",
-        posts_fetched=5,
-        posts_dedup_skipped=0,
-        posts_classified=3,
-        posts_queued=1,
-        error_summary="reddit auth failed; youtube succeeded",
-    )
-    payload = fake.builders["agent_runs"].last_payload
-    assert payload["error_summary"] == "reddit auth failed; youtube succeeded"
-
-
-def test_finish_run_refuses_running_status() -> None:
-    with pytest.raises(ValueError, match="cannot set status back to 'running'"):
-        finish_run(
-            RunHandle(run_id="abc"),
-            _make_config(),
-            status="running",  # type: ignore[arg-type]
-            posts_fetched=0,
-            posts_dedup_skipped=0,
-            posts_classified=0,
-            posts_queued=0,
-        )
-
-
-def test_finish_run_raises_when_update_returns_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _install_fake_client(monkeypatch)
-    fake.set_response("agent_runs", [])
-    with pytest.raises(RuntimeError, match="returned no rows"):
-        finish_run(
-            RunHandle(run_id="abc"),
-            _make_config(),
-            status="success",
-            posts_fetched=0,
-            posts_dedup_skipped=0,
-            posts_classified=0,
-            posts_queued=0,
-        )
 
 
 # ----- agents/scout/storage/posts.py ----------------------------------------

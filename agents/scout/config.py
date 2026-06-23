@@ -22,6 +22,14 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+# StorageConfig is a platform-spine type, not Scout-specific. It lives in
+# shared/ so shared/db/client.py can use it without importing from agents/
+# (the hard contract invariant). Re-exported here so existing
+# agents.scout.config.StorageConfig references keep working.
+from shared.config import StorageConfig
+
+__all__ = ["StorageConfig"]
+
 
 @dataclass(frozen=True, slots=True)
 class RedditConfig:
@@ -61,13 +69,6 @@ class ClassificationConfig:
     max_post_chars: int
     retry_on_rate_limit: bool
     max_retries: int
-
-
-@dataclass(frozen=True, slots=True)
-class StorageConfig:
-    supabase_url: str
-    supabase_service_role_key: str
-    schema: str
 
 
 @dataclass(frozen=True, slots=True)

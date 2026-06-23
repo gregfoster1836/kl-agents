@@ -31,7 +31,6 @@ from typing import Any, Literal
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup
 from agents.scout.classifier.ica import classify_all
 from agents.scout.config import (
     Config,
@@ -44,7 +43,8 @@ from agents.scout.fetchers import reddit as reddit_fetcher
 from agents.scout.fetchers import youtube as youtube_fetcher
 from agents.scout.models import Classification, FetchedPost
 from agents.scout.storage.posts import InsertResult, insert_classified_posts
-from agents.scout.storage.runs import RunHandle, finish_run, start_run
+from shared import logging_setup
+from shared.runs import RunHandle, finish_safely, start_run, status_to_exit_code
 
 SourceFilter = Literal["reddit", "youtube", "all"]
 
@@ -149,10 +149,6 @@ def _classify_run(
     return "partial"
 
 
-def _status_to_exit_code(status: Literal["success", "partial", "failed"]) -> int:
-    return {"success": 0, "partial": 1, "failed": 2}[status]
-
-
 def _run_dry(
     config: Config,
     *,
@@ -206,7 +202,7 @@ def _run_dry(
             "sources_failed": failed,
         },
     )
-    return _status_to_exit_code(status)
+    return status_to_exit_code(status)
 
 
 def _run_live(
@@ -261,13 +257,15 @@ def _run_live(
         insert_result = insert_classified_posts(handle, config, items)
     except Exception as exc:
         log.error("insert_failed", extra={"error": str(exc)}, exc_info=True)
-        _finish_safely(
+        _finish_scout_run(
             handle,
             config,
             status="failed",
-            posts_fetched=len(all_posts),
-            insert_result=InsertResult(inserted=0, skipped=0),
-            posts_queued=0,
+            counts=_scout_counts(
+                posts_fetched=len(all_posts),
+                insert_result=InsertResult(inserted=0, skipped=0),
+                posts_queued=0,
+            ),
             error_summary=f"insert failed: {exc}",
             log=log,
         )
@@ -283,13 +281,15 @@ def _run_live(
     if failed > 0:
         error_summary = f"{failed} of {attempted} sources hit failures"
 
-    _finish_safely(
+    _finish_scout_run(
         handle,
         config,
         status=status,
-        posts_fetched=len(all_posts),
-        insert_result=insert_result,
-        posts_queued=posts_queued,
+        counts=_scout_counts(
+            posts_fetched=len(all_posts),
+            insert_result=insert_result,
+            posts_queued=posts_queued,
+        ),
         error_summary=error_summary,
         log=log,
     )
@@ -306,43 +306,55 @@ def _run_live(
             "sources_failed": failed,
         },
     )
-    return _status_to_exit_code(status)
+    return status_to_exit_code(status)
 
 
-def _finish_safely(
+def _scout_counts(
+    *,
+    posts_fetched: int,
+    insert_result: InsertResult,
+    posts_queued: int,
+) -> dict[str, int]:
+    """Scout's run metrics as a flat dict.
+
+    posts_classified equals posts_inserted (every inserted row carries a
+    classification). posts_queued is the count that reached the human review
+    queue (belief-match + confidence). These are Scout-specific listener
+    counts; the shared contract treats them as opaque metrics.
+    """
+    return {
+        "posts_fetched": posts_fetched,
+        "posts_dedup_skipped": insert_result.skipped,
+        "posts_classified": insert_result.inserted,
+        "posts_queued": posts_queued,
+    }
+
+
+def _finish_scout_run(
     handle: RunHandle,
     config: Config,
     *,
     status: Literal["success", "partial", "failed"],
-    posts_fetched: int,
-    insert_result: InsertResult,
-    posts_queued: int,
+    counts: dict[str, int],
     error_summary: str | None,
     log: Any,
 ) -> None:
-    """Wrap finish_run so a bookkeeping failure cannot mask the real error.
+    """Finish a Scout run via the shared lifecycle.
 
-    posts_classified equals posts_inserted (every inserted row carries a
-    classification). posts_queued is the count that reached the human review
-    queue (belief-match + confidence), passed in by the caller.
+    Writes Scout's counts as the run's `metrics` JSONB AND mirrors them into the
+    deprecated posts_* columns (migration 0008 transition) while consumers may
+    still read those columns. finish_safely swallows a bookkeeping failure so it
+    cannot mask the real run outcome.
     """
-    try:
-        finish_run(
-            handle,
-            config,
-            status=status,
-            posts_fetched=posts_fetched,
-            posts_dedup_skipped=insert_result.skipped,
-            posts_classified=insert_result.inserted,
-            posts_queued=posts_queued,
-            error_summary=error_summary,
-        )
-    except Exception as exc:
-        log.error(
-            "finish_run_failed",
-            extra={"run_id": handle.run_id, "error": str(exc)},
-            exc_info=True,
-        )
+    finish_safely(
+        handle,
+        config,
+        status=status,
+        metrics=dict(counts),
+        legacy_counts=counts,
+        error_summary=error_summary,
+        log=log,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -371,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    log = logging_setup.configure(level="INFO")
+    log = logging_setup.configure(level="INFO", agent="scout")
 
     source_filter: SourceFilter = args.source
 

@@ -27,12 +27,12 @@ from pathlib import Path
 # Make 'agents' and 'shared' importable when running this as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.scout import logging_setup
 from agents.scout.config import ConfigError, load
 from agents.scout.models import Classification, FetchedPost, Source
 from agents.scout.storage.posts import insert_classified_posts
-from agents.scout.storage.runs import finish_run, start_run
+from shared import logging_setup
 from shared.db.client import get_client
+from shared.runs import finish_run, start_run
 
 # A clearly-synthetic URL so cleanup queries can target this script's rows
 # without any chance of catching production-ish data.
@@ -99,7 +99,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    log = logging_setup.configure(level="INFO")
+    log = logging_setup.configure(level="INFO", agent="scout")
 
     # Guard: this script must never run against agents_prod.
     try:
@@ -180,14 +180,18 @@ def main() -> int:
 
     # ---- Phase 4: finish the run -------------------------------------------
     try:
+        smoke_counts = {
+            "posts_fetched": 1,
+            "posts_dedup_skipped": 1,
+            "posts_classified": 1,
+            "posts_queued": 0,
+        }
         finish_run(
             handle,
             config,
             status="success",
-            posts_fetched=1,
-            posts_dedup_skipped=1,
-            posts_classified=1,
-            posts_queued=0,
+            metrics=smoke_counts,
+            legacy_counts=smoke_counts,
         )
     except Exception as exc:
         log.error("finish_run_failed", extra={"error": str(exc)}, exc_info=True)
